@@ -123,6 +123,31 @@ def flatten(stage: Path) -> None:
                 break
 
 
+def prune(stage: Path, links: list[list[str]]) -> None:
+    """Drop build-time-only files (headers, static libs, man pages) from the flattened tools."""
+    freed = 0
+    victims: list[Path] = []
+    for tool in (stage / "tools").glob("*"):
+        if tool.is_dir():
+            victims += [tool / "include", tool / "share/man", tool / "share/doc", tool / "share/info"]
+    for d in (stage / "tools", stage / "runtime-libs"):
+        if d.is_dir():
+            victims += [p for p in d.rglob("*.a") if p.is_file()]
+    for v in victims:
+        if not v.exists():
+            continue
+        if v.is_dir():
+            freed += sum(f.stat().st_size for f in v.rglob("*") if f.is_file() and not f.is_symlink())
+            shutil.rmtree(v)
+        else:
+            freed += v.stat().st_size
+            v.unlink()
+    gone = [l for l in links if not (stage / l[0]).parent.exists()]
+    for l in gone:
+        links.remove(l)
+    log(f"pruned {freed / 1e6:.1f} MB of headers/static libs/docs ({len(gone)} dangling links dropped)")
+
+
 def relink(stage: Path) -> list[list[str]]:
     """Record every symlink with a target valid for the flattened layout, then remove it.
 
@@ -240,6 +265,8 @@ def tool_dirs(stage: Path) -> tuple[list[str], list[str]]:
     ld, path = [], []
     tools = stage / "tools"
     for tool in sorted(tools.iterdir()) if tools.is_dir() else []:
+        if not tool.is_dir():
+            continue
         rel = f"tools/{tool.name}"
         if (tool / "lib").is_dir():
             ld.append(f"{rel}/lib")
@@ -319,6 +346,7 @@ def main() -> int:
 
     links = relink(stage)
     flatten(stage)
+    prune(stage, links)
     rewritten, executables, elves = rewrite_and_scan(stage)
     cert = build_fake_prefix(stage, links)
     launcher = parse_launcher(stage)
