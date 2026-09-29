@@ -6,6 +6,6 @@
         <item name="android:colorAccent">@color/hermes_accent</item>
         <item name="android:statusBarColor">@color/hermes_bar</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">#FF1F3A7A</item>
+        <item name="android:navigationBarColor">#FF22574F</item>
     </style>
 </resources>

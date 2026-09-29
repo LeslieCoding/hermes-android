@@ -109,6 +109,11 @@ class HermesService : Service() {
             }
             if (stopping) return
 
+            try {
+                RuntimeEnv.installConsoleThemes(this)
+            } catch (e: Exception) {
+                log("控制台主题写入失败：${e.message}")
+            }
             val port = choosePort(Prefs.port(this))
             val token = newToken()
             HermesRuntime.update {

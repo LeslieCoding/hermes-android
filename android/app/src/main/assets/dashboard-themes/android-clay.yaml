@@ -1,0 +1,18 @@
+# Shipped by Hermes for Android; rewritten on every start. Copy under another name to customise.
+name: android-clay
+label: "Hermes Android · 陶土"
+description: Light theme matching the Hermes for Android app
+palette:
+  background: "#F7F3EE"
+  midground: "#6E3A22"
+  foreground:
+    hex: "#1C1C1C"
+    alpha: 0
+  warmGlow: "rgba(168, 90, 54, 0.10)"
+  noiseOpacity: 0
+colorOverrides:
+  primary: "#A85A36"
+  primaryForeground: "#FFFFFF"
+  ring: "#A85A36"
+  card: "#FFFFFF"
+  border: "#EAE3D9"

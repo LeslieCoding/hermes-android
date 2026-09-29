@@ -5,7 +5,7 @@
         <item name="android:colorPrimary">@color/hermes_accent</item>
         <item name="android:colorAccent">@color/hermes_accent</item>
         <!-- Below API 23 the status bar icons are always white, so keep the bar dark there. -->
-        <item name="android:statusBarColor">#FF1F3A7A</item>
-        <item name="android:navigationBarColor">#FF1F3A7A</item>
+        <item name="android:statusBarColor">#FF22574F</item>
+        <item name="android:navigationBarColor">#FF22574F</item>
     </style>
 </resources>

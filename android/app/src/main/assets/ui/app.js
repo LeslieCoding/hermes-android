@@ -1067,32 +1067,65 @@
     if (!setupChecked) {
       setupChecked = true;
       checkSetup();
-      seedConsoleTheme();
+      syncConsoleTheme(false);
     }
   }
 
-  // The embedded console defaults to a dark theme; switch it once to upstream's
-  // light "Nous Blue" preset so it matches the app. A later choice by the user wins.
-  async function seedConsoleTheme() {
-    const KEY = 'hermes.android.consoleThemeSeeded';
+  // ── themes ──
+  // The app ships matching console themes (android-<name>) in HERMES_HOME/dashboard-themes.
+  // We only steer the console's theme while it is one we set (or a stock default), so a
+  // theme the user picked inside the console wins.
+  const THEME_KEY = 'hermes.android.theme';
+  const THEMES = ['sage', 'clay', 'lavender'];
+
+  function currentTheme() {
     try {
-      if (localStorage.getItem(KEY)) return;
+      const t = localStorage.getItem(THEME_KEY);
+      return THEMES.includes(t) ? t : 'sage';
+    } catch (_) { return 'sage'; }
+  }
+
+  function renderThemePicker() {
+    const t = currentTheme();
+    document.querySelectorAll('#themes .theme-opt').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+  }
+
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem(THEME_KEY, t); } catch (_) { /* ignore */ }
+    renderThemePicker();
+    syncConsoleTheme(true);
+  }
+
+  async function syncConsoleTheme(force) {
+    if (status.phase !== 'running' || !status.token) return;
+    const want = 'android-' + currentTheme();
+    try {
       const headers = { 'X-Hermes-Session-Token': status.token };
       const r = await fetch('/api/dashboard/themes', { headers });
       if (!r.ok) return;
       const data = await r.json();
-      if (!data.active || data.active === 'default') {
-        const put = await fetch('/api/dashboard/theme', {
-          method: 'PUT',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
-          body: JSON.stringify({ name: 'nous-blue' }),
-        });
-        if (!put.ok) return;
-        localStorage.setItem('hermes-dashboard-theme', 'nous-blue');
+      const active = data.active || 'default';
+      const ours = active === 'default' || active === 'nous-blue' || active.startsWith('android-');
+      if (active === want || (!ours && !force)) return;
+      if (!(data.themes || []).some(t => t.name === want)) return;
+      const put = await fetch('/api/dashboard/theme', {
+        method: 'PUT',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+        body: JSON.stringify({ name: want }),
+      });
+      if (put.ok) {
+        localStorage.setItem('hermes-dashboard-theme', want);
+        const frame = $('#console-frame');
+        if (frame.getAttribute('src')) frame.contentWindow.location.reload();
       }
-      localStorage.setItem(KEY, '1');
     } catch (_) { /* not critical */ }
   }
+
+  document.querySelectorAll('#themes .theme-opt').forEach(b => {
+    b.addEventListener('click', () => applyTheme(b.dataset.theme));
+  });
+  renderThemePicker();
 
   async function checkSetup() {
     try {

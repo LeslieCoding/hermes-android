@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="hermes_bg">#FFF4F6FB</color>
+    <color name="hermes_bg">#FFF5F4EF</color>
     <color name="hermes_bar">#FFFFFFFF</color>
-    <color name="hermes_accent">#FF2F6BFF</color>
-    <color name="ic_launcher_background">#FFF3F7FF</color>
+    <color name="hermes_accent">#FF2E6E64</color>
+    <color name="ic_launcher_background">#FFF3F6F2</color>
 </resources>

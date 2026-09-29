@@ -80,6 +80,21 @@ object RuntimeEnv {
         )
     }
 
+    /**
+     * Console (dashboard) themes matching the app's palettes. Rewritten on every start so
+     * palette updates ship with the app; users customise by copying under another name.
+     */
+    fun installConsoleThemes(context: Context) {
+        val dir = File(hermesHome(context), "dashboard-themes").apply { mkdirs() }
+        val names = context.assets.list("dashboard-themes") ?: return
+        for (name in names) {
+            if (!name.endsWith(".yaml")) continue
+            context.assets.open("dashboard-themes/$name").use { input ->
+                File(dir, name).outputStream().use { input.copyTo(it) }
+            }
+        }
+    }
+
     /** Environment variables inherited from the app process that must not leak into Hermes. */
     val SCRUB = listOf("PYTHONHOME", "PYTHONSTARTUP", "LD_PRELOAD", "CLASSPATH")
 }

@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
   <title>Hermes</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('hermes.android.theme')||'sage'}catch(e){}</script>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -93,6 +94,15 @@
             <button type="button" id="btn-start" class="primary">启动</button>
             <button type="button" id="btn-restart">重启</button>
             <button type="button" id="btn-stop" class="danger">停止</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label">外观</div>
+          <div class="themes" id="themes">
+            <button type="button" class="theme-opt" data-theme="sage"><span class="sw"><i style="background:#f5f4ef"></i><i style="background:#e2eeea"></i><i style="background:#2e6e64"></i></span>雾松青</button>
+            <button type="button" class="theme-opt" data-theme="clay"><span class="sw"><i style="background:#f7f3ee"></i><i style="background:#f5e6dd"></i><i style="background:#a85a36"></i></span>陶土</button>
+            <button type="button" class="theme-opt" data-theme="lavender"><span class="sw"><i style="background:#f6f5fa"></i><i style="background:#ece9fb"></i><i style="background:#6250cc"></i></span>雾紫</button>
           </div>
         </div>
 

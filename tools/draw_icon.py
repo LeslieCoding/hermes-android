@@ -30,7 +30,7 @@ def mark(size):
     d.rounded_rectangle([lx, top, lx + w, bot], radius=r, fill=255)
     d.rounded_rectangle([rx, top, rx + w, bot], radius=r, fill=255)
     d.rounded_rectangle([lx, S * 0.455, rx + w, S * 0.455 + w * 0.72], radius=w * 0.36, fill=255)
-    body = lin_grad((S, S), (84, 142, 255, 255), (30, 78, 226, 255), 120)
+    body = lin_grad((S, S), (70, 146, 132, 255), (30, 86, 78, 255), 120)
     out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     out.paste(body, (0, 0), mask)
 
@@ -56,7 +56,7 @@ def mark(size):
     feather(px, S * 0.47, S * 0.40, S * 0.062, 196, -0.06)
     feather(px, S * 0.41, S * 0.34, S * 0.056, 208, -0.06)
     feather(px, S * 0.35, S * 0.27, S * 0.050, 220, -0.06)
-    wing_col = lin_grad((S, S), (178, 206, 255, 255), (104, 152, 255, 255), 20)
+    wing_col = lin_grad((S, S), (190, 222, 212, 255), (112, 170, 156, 255), 20)
     wlayer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     wlayer.paste(wing_col, (0, 0), wing)
     out = Image.alpha_composite(wlayer, out)
@@ -66,7 +66,7 @@ def mark(size):
 
 def background(size, shape):
     S = size * SS
-    bg = lin_grad((S, S), (255, 255, 255, 255), (221, 233, 255, 255), 45)
+    bg = lin_grad((S, S), (253, 252, 249, 255), (226, 238, 233, 255), 45)
     mask = Image.new("L", (S, S), 0)
     md = ImageDraw.Draw(mask)
     if shape == "round":
@@ -85,7 +85,7 @@ def background(size, shape):
     elif shape == "square":
         ed.rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * 0.23), outline=255, width=max(2, S // 110))
     if shape != "full":
-        line = Image.new("RGBA", (S, S), (206, 222, 250, 255))
+        line = Image.new("RGBA", (S, S), (214, 226, 220, 255))
         out.paste(line, (0, 0), edge)
     return out.resize((size, size), Image.LANCZOS)
 
@@ -115,5 +115,5 @@ if __name__ == "__main__":
         legacy(int(48 * f), "round").save(os.path.join(d, "ic_launcher_round.png"))
         foreground(int(108 * f)).save(os.path.join(d, "ic_launcher_foreground.png"))
         background(int(108 * f), "full").save(os.path.join(d, "ic_launcher_bg.png"))
-    legacy(512, "square").save("/root/scratch/icon/preview-square.png")
+    legacy(512, "square").save("/root/scratch/icon/preview-square.png")  # previews
     legacy(512, "round").save("/root/scratch/icon/preview-round.png")

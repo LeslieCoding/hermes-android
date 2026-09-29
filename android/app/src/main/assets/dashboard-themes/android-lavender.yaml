@@ -1,0 +1,18 @@
+# Shipped by Hermes for Android; rewritten on every start. Copy under another name to customise.
+name: android-lavender
+label: "Hermes Android · 雾紫"
+description: Light theme matching the Hermes for Android app
+palette:
+  background: "#F6F5FA"
+  midground: "#3F3494"
+  foreground:
+    hex: "#1C1C1C"
+    alpha: 0
+  warmGlow: "rgba(98, 80, 204, 0.10)"
+  noiseOpacity: 0
+colorOverrides:
+  primary: "#6250CC"
+  primaryForeground: "#FFFFFF"
+  ring: "#6250CC"
+  card: "#FFFFFF"
+  border: "#E6E3F0"

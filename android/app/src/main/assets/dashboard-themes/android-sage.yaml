@@ -1,0 +1,18 @@
+# Shipped by Hermes for Android; rewritten on every start. Copy under another name to customise.
+name: android-sage
+label: "Hermes Android · 雾松青"
+description: Light theme matching the Hermes for Android app
+palette:
+  background: "#F5F4EF"
+  midground: "#24524B"
+  foreground:
+    hex: "#1C1C1C"
+    alpha: 0
+  warmGlow: "rgba(46, 110, 100, 0.10)"
+  noiseOpacity: 0
+colorOverrides:
+  primary: "#2E6E64"
+  primaryForeground: "#FFFFFF"
+  ring: "#2E6E64"
+  card: "#FFFFFF"
+  border: "#E6E3DB"
