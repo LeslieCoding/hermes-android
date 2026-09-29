@@ -1,0 +1,12 @@
+build/
+dist/
+upstream/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/payload/
+*.jks
+*.keystore
+.idea/
+__pycache__/

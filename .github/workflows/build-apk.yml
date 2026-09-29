@@ -1,0 +1,175 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Hermes 运行时渠道
+        type: choice
+        options: [stable, canary]
+        default: stable
+      version:
+        description: 固定运行时版本（Debian 版本号，留空取最新）
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHANNEL: ${{ inputs.channel || 'stable' }}
+  PIN_VERSION: ${{ inputs.version || '' }}
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android/sdk/ndk || true
+          df -h /
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Download the official Hermes Android runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gpgv gnupg binutils dpkg >/dev/null
+          if ! python3 scripts/fetch_payload.py --channel "$CHANNEL" --version "$PIN_VERSION" --out build/deb; then
+            if [ "$CHANNEL" = stable ] && [ -z "$PIN_VERSION" ]; then
+              echo "::warning::stable 渠道获取失败，改用 canary 渠道"
+              python3 scripts/fetch_payload.py --channel canary --out build/deb
+            else
+              exit 1
+            fi
+          fi
+          cat build/deb/meta.json
+
+      - name: Inspect runtime layout
+        run: |
+          ROOT=build/deb/root/data/data/com.termux/files/usr/lib/hermes-agent
+          du -sh "$ROOT"/* || true
+          find "$ROOT" -maxdepth 2 | sort | head -60
+          cat "$ROOT/bin/hermes" || true
+          cat "$ROOT/app/install-stamp.json" || true
+
+      - name: Resolve upstream source revision
+        id: upstream
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib
+          stamp = pathlib.Path("build/deb/root/data/data/com.termux/files/usr/lib/hermes-agent/app/install-stamp.json")
+          data = json.loads(stamp.read_text()) if stamp.is_file() else {}
+          meta = json.loads(pathlib.Path("build/deb/meta.json").read_text())
+          print(f"commit={data.get('commit') or ''}")
+          print(f"version={data.get('display_version') or data.get('base_version') or meta['version']}")
+          print(f"deb_version={meta['version']}")
+          PY
+
+      - name: Check out upstream source (dashboard web UI)
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ steps.upstream.outputs.commit || 'main' }}
+          path: upstream
+          fetch-depth: 1
+
+      - name: Build dashboard web UI
+        working-directory: upstream
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          PUPPETEER_SKIP_DOWNLOAD: '1'
+          HUSKY: '0'
+        run: |
+          npm ci --workspace web --include-workspace-root --no-audit --no-fund \
+            || npm ci --no-audit --no-fund
+          npm run build --workspace web
+          test -f hermes_cli/web_dist/index.html
+
+      - name: Relocate runtime for the app
+        run: |
+          python3 scripts/relocate_payload.py \
+            --deb-root build/deb/root \
+            --web-dist upstream/hermes_cli/web_dist \
+            --meta build/deb/meta.json \
+            --out build/payload
+          mkdir -p android/app/src/main/assets/payload
+          cp build/payload/payload.zip build/payload/payload.json android/app/src/main/assets/payload/
+          python3 -c "import json;m=json.load(open('build/payload/payload.json'));print(json.dumps({k:m[k] for k in ('payload_id','launcher','ld_library_path','path','missing_libs','file_count','total_bytes','zip_bytes')},indent=1,ensure_ascii=False))"
+
+      - name: Set up signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "HERMES_ANDROID_KEYSTORE=$RUNNER_TEMP/release.jks"
+              echo "HERMES_ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "HERMES_ANDROID_KEY_ALIAS=$KEY_ALIAS"
+              echo "HERMES_ANDROID_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "Signing with the release keystore from repository secrets."
+          else
+            echo "::warning::未配置 ANDROID_KEYSTORE_BASE64，本次用临时调试签名。每次构建签名都不同，升级安装会失败，需要先卸载（会清空数据）。见 README 的「签名」一节。"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          HERMES_ANDROID_VERSION_CODE: ${{ github.run_number }}
+          HERMES_ANDROID_VERSION_NAME: ${{ steps.upstream.outputs.version }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        id: apk
+        run: |
+          mkdir -p dist
+          NAME="hermes-android-${{ steps.upstream.outputs.version }}-${{ github.run_number }}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/$NAME"
+          cp build/payload/payload.json dist/payload.json
+          (cd dist && sha256sum "$NAME" > "$NAME.sha256")
+          ls -lh dist
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: dist/
+          compression-level: 0
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.apk
+            dist/*.sha256
+          body: |
+            Hermes Agent 运行时版本：${{ steps.upstream.outputs.deb_version }}（上游提交 ${{ steps.upstream.outputs.commit }}）

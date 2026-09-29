@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hermes</string>
+    <string name="channel_name">Hermes 运行状态</string>
+    <string name="channel_desc">Hermes Agent 在后台运行时显示</string>
+    <string name="notif_installing">正在准备运行环境…</string>
+    <string name="notif_starting">Hermes 正在启动…</string>
+    <string name="notif_running">Hermes 正在运行</string>
+    <string name="notif_running_text">本机智能体服务已就绪，点按打开</string>
+    <string name="notif_error">Hermes 已停止</string>
+    <string name="action_stop">停止</string>
+</resources>

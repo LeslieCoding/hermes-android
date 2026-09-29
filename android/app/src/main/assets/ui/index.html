@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="dark light">
+  <title>Hermes</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button id="btn-sessions" class="icon" type="button" aria-label="会话列表">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </button>
+    <div class="title">
+      <div id="title">Hermes</div>
+      <div id="subtitle"><span id="conn-dot" class="dot"></span><span id="conn-text">连接中…</span></div>
+    </div>
+    <button id="btn-new" class="icon" type="button" aria-label="新对话">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section id="view-chat" class="view active" aria-label="对话">
+      <div id="banner" hidden></div>
+      <div id="messages">
+        <div id="empty">
+          <div class="empty-mark">H</div>
+          <h2>有什么可以帮你？</h2>
+          <p>Hermes 智能体完全运行在这台手机上。它能联网检索、读写文件、执行命令、使用技能并记住你的偏好。</p>
+          <div class="suggest">
+            <button type="button" data-prompt="帮我总结一下今天的科技新闻">总结今天的科技新闻</button>
+            <button type="button" data-prompt="你能做哪些事？列出你当前可用的工具和技能">你能做什么？</button>
+            <button type="button" data-prompt="帮我写一个每天早上 8 点提醒我喝水的定时任务">创建一个定时提醒</button>
+          </div>
+        </div>
+      </div>
+      <form id="composer" autocomplete="off">
+        <div id="attachments"></div>
+        <div class="composer-row">
+          <button type="button" id="btn-attach" class="icon" aria-label="添加附件">
+            <svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 01-7.8-7.8l8.6-8.6a3.7 3.7 0 015.2 5.2l-8.6 8.6a1.8 1.8 0 01-2.6-2.6l7.9-7.9"/></svg>
+          </button>
+          <textarea id="input" rows="1" placeholder="给 Hermes 发消息" enterkeyhint="send"></textarea>
+          <button type="submit" id="btn-send" class="send" aria-label="发送">
+            <svg class="i-send" viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+            <svg class="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+          </button>
+        </div>
+        <input type="file" id="file" multiple hidden>
+      </form>
+
+      <div id="boot" class="boot" hidden>
+        <div class="boot-card">
+          <div class="empty-mark">H</div>
+          <div id="boot-title">正在准备 Hermes</div>
+          <div id="boot-text" class="muted"></div>
+          <div id="boot-progress" class="progress"><div></div></div>
+          <button type="button" id="boot-action" hidden></button>
+            <button type="button" id="boot-logs" hidden>查看日志</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-console" class="view" aria-label="控制台">
+      <iframe id="console-frame" title="Hermes 控制台"></iframe>
+      <div id="console-offline" class="offline">Hermes 还没有运行，控制台暂不可用。</div>
+    </section>
+
+    <section id="view-status" class="view" aria-label="运行状态">
+      <div class="scroll">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="label">本机运行时</div>
+              <div id="st-phase" class="big">—</div>
+            </div>
+            <span id="st-dot" class="dot big-dot"></span>
+          </div>
+          <div id="st-message" class="muted"></div>
+          <div id="st-progress" class="progress" hidden><div></div></div>
+          <dl class="kv">
+            <dt>地址</dt><dd id="st-addr">—</dd>
+            <dt>进程</dt><dd id="st-pid">—</dd>
+            <dt>运行时版本</dt><dd id="st-payload">—</dd>
+            <dt>App 版本</dt><dd id="st-app">—</dd>
+            <dt>设备</dt><dd id="st-device">—</dd>
+          </dl>
+          <div class="buttons">
+            <button type="button" id="btn-start" class="primary">启动</button>
+            <button type="button" id="btn-restart">重启</button>
+            <button type="button" id="btn-stop" class="danger">停止</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label">后台运行</div>
+          <label class="switch-row"><span>运行时保持 CPU 唤醒<small>长任务、定时任务不被系统休眠打断</small></span><input type="checkbox" id="opt-awake"></label>
+          <label class="switch-row"><span>打开 App 时自动启动<small>关闭后需要在此页手动启动</small></span><input type="checkbox" id="opt-autostart"></label>
+          <div class="switch-row" id="battery-row"><span>电池优化<small id="battery-text">—</small></span><button type="button" id="btn-battery">设置</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="label">日志</div>
+            <div class="buttons small">
+              <button type="button" id="btn-log-copy">复制</button>
+              <button type="button" id="btn-log-refresh">刷新</button>
+            </div>
+          </div>
+          <pre id="log"></pre>
+        </div>
+
+        <p class="footnote">基于 NousResearch/hermes-agent（MIT）。模型、API Key、技能、定时任务等请在「控制台」中配置。</p>
+      </div>
+    </section>
+  </main>
+
+  <nav id="tabs">
+    <button type="button" data-view="chat" class="active">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span>对话</span>
+    </button>
+    <button type="button" data-view="console">
+      <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>控制台</span>
+    </button>
+    <button type="button" data-view="status">
+      <svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>运行</span>
+    </button>
+  </nav>
+
+  <div id="drawer" class="drawer" hidden>
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <strong>会话</strong>
+        <button type="button" id="btn-drawer-new" class="pill">新对话</button>
+      </div>
+      <div id="session-list"></div>
+    </div>
+    <div class="drawer-scrim" data-close></div>
+  </div>
+</div>
+<script src="md.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
