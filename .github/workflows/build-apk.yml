@@ -170,6 +170,13 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
+          name: payload
+          path: build/payload/
+          compression-level: 0
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v5
+        with:
           name: ${{ steps.apk.outputs.name }}
           path: dist/
           compression-level: 0
@@ -183,3 +190,42 @@ jobs:
             dist/*.sha256
           body: |
             Hermes Agent 运行时版本：${{ steps.upstream.outputs.deb_version }}（上游提交 ${{ steps.upstream.outputs.commit }}）
+
+  smoke:
+    name: Smoke test in an Android container
+    needs: apk
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    env:
+      IMAGE: termux/termux-docker:aarch64
+      FINAL: /data/data/com.termux/files/home/sim
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: payload
+          path: build/payload
+
+      - name: Install the payload the way the app does
+        run: |
+          python3 scripts/install_payload.py --zip build/payload/payload.zip --manifest build/payload/payload.json \
+            --dest sim/files/hermes-agent --final-root "$FINAL/files/hermes-agent"
+          python3 scripts/smoke_env.py --manifest build/payload/payload.json \
+            --root "$FINAL/files/hermes-agent" --files "$FINAL/files" --out sim/files/run.sh
+          cp scripts/smoke_client.py scripts/smoke.sh sim/
+          chmod -R a+rwX sim
+          cat sim/files/run.sh
+
+      - name: Probe the container
+        run: |
+          docker pull -q "$IMAGE"
+          docker run --rm --entrypoint /system/bin/sh "$IMAGE" -c 'id; uname -a; ls /system/bin' > probe.txt 2>&1 || true
+          echo "::notice title=container::$(head -c 3000 probe.txt | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+
+      - name: Run Hermes with the Termux prefix hidden
+        run: |
+          scripts/ci_run.sh smoke docker run --rm --network none --user 1000:1000 \
+            --tmpfs /data/data/com.termux/files/usr:mode=0755,uid=1000,gid=1000 \
+            -v "$PWD/sim:$FINAL" --entrypoint /system/bin/sh "$IMAGE" "$FINAL/smoke.sh"
+          grep -q SMOKE_OK build/logs/smoke.log
