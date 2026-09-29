@@ -14,10 +14,12 @@ for mode in ld-path runpath-only; do
   if [ "$mode" = runpath-only ]; then export NO_LD_LIBRARY_PATH=1; PORT=9120; fi
   export SMOKE_PORT=$PORT
   echo "===== pass: $mode"
-  "$S/files/run.sh" --exec "$R/venv/bin/python" --version 2>&1 | first python
-  "$S/files/run.sh" --exec "$R/tools/node/bin/node" --version 2>&1 | first node
-  "$S/files/run.sh" --exec "$R/tools/ripgrep/rg" --version 2>&1 | first rg
-  "$S/files/run.sh" --exec "$R/tools/ffmpeg/bin/ffmpeg" -version 2>&1 | first ffmpeg
+  # Resolved through the PATH the app sets, like Hermes' own tool lookups.
+  "$S/files/run.sh" --exec python --version 2>&1 | first python
+  "$S/files/run.sh" --exec node --version 2>&1 | first node
+  "$S/files/run.sh" --exec npm --version 2>&1 | first npm
+  "$S/files/run.sh" --exec rg --version 2>&1 | first rg
+  "$S/files/run.sh" --exec ffmpeg -version 2>&1 | first ffmpeg
   "$S/files/run.sh" > "$S/server-$mode.log" 2>&1 &
   PID=$!
   if ! "$S/files/run.sh" --py "$S/smoke_client.py" "$PORT" smoke-token; then
@@ -25,6 +27,9 @@ for mode in ld-path runpath-only; do
     echo "== server log ($mode)"
     dump "$S/server-$mode.log"
   fi
+  while IFS= read -r line; do
+    case "$line" in *"out of sync"*|*Traceback*) echo "server: $line" ;; esac
+  done < "$S/server-$mode.log"
   kill "$PID" 2>/dev/null
 done
 exit $RC

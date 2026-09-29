@@ -50,9 +50,18 @@ object ProcUtil {
         return out
     }
 
-    /** Direct children of this app process whose command line starts with [exe]. */
-    fun findChild(exe: String): Int? =
-        list().firstOrNull { it.ppid == Process.myPid() && it.cmdline.startsWith(exe) }?.pid
+    /**
+     * The direct child of this app process running [exe]. Retries briefly: right after
+     * fork the child's cmdline is still empty, and under ARM translation it is prefixed
+     * by the translator, so match with contains().
+     */
+    fun findChild(exe: String): Int? {
+        repeat(30) {
+            list().firstOrNull { it.ppid == Process.myPid() && it.cmdline.contains(exe) }?.let { return it.pid }
+            Thread.sleep(100)
+        }
+        return null
+    }
 
     fun alive(pid: Int): Boolean = pid > 0 && File("/proc/$pid").exists()
 
