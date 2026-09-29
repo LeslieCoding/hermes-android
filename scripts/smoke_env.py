@@ -61,9 +61,11 @@ def main() -> int:
     lines = ["#!/system/bin/sh", "unset PYTHONHOME PYTHONSTARTUP LD_PRELOAD"]
     lines += [f"export {k}={shlex.quote(v)}" for k, v in env.items()]
     lines += [f"mkdir -p {shlex.quote(env['HERMES_HOME'])} {shlex.quote(env['TMPDIR'])}", f"cd {shlex.quote(home)}"]
+    lines.append('if [ -n "$NO_LD_LIBRARY_PATH" ]; then unset LD_LIBRARY_PATH; fi')
+    lines.append('if [ "$1" = "--exec" ]; then shift; exec "$@"; fi')
     lines.append('if [ "$1" = "--py" ]; then shift; exec ' + shlex.quote(python) + ' "$@"; fi')
     lines.append('if [ "$1" = "--version" ]; then exec ' + shlex.quote(python) + " -P -c " + shlex.quote(code) + " --version; fi")
-    lines.append(f"exec {shlex.quote(python)} -P -c {shlex.quote(code)} dashboard --host 127.0.0.1 --port {args.port} --no-open")
+    lines.append(f"exec {shlex.quote(python)} -P -c {shlex.quote(code)} dashboard --host 127.0.0.1 --port \"${{SMOKE_PORT:-{args.port}}}\" --no-open")
     args.out.write_text("\n".join(lines) + "\n")
     args.out.chmod(0o755)
     return 0

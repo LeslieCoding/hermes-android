@@ -34,7 +34,6 @@ object RuntimeEnv {
             "HERMES_HOME" to hermesHome(context).absolutePath,
             "PREFIX" to prefix,
             "TMPDIR" to tmp.absolutePath,
-            "LD_LIBRARY_PATH" to dirs("ld_library_path").joinToString(":"),
             "PATH" to (dirs("path") + listOf("/system/bin", "/system/xbin", "/vendor/bin")).joinToString(":"),
             "SHELL" to "/system/bin/sh",
             "TERM" to "xterm-256color",
@@ -54,6 +53,12 @@ object RuntimeEnv {
             // Android keeps its CA store in OpenSSL hashed-directory format.
             "SSL_CERT_DIR" to "/system/etc/security/cacerts",
         )
+        // Bundled ELF files carry $ORIGIN RUNPATHs. On real arm64 devices we also export
+        // LD_LIBRARY_PATH (what upstream's launcher does); on x86 devices running the
+        // payload through ARM translation it would leak into the x86 translator itself.
+        if (android.os.Build.SUPPORTED_ABIS.firstOrNull() == "arm64-v8a") {
+            env["LD_LIBRARY_PATH"] = dirs("ld_library_path").joinToString(":")
+        }
         manifest.optString("node").takeIf { it.isNotEmpty() && it != "null" }?.let { env["HERMES_NODE"] = "$r/$it" }
         manifest.optString("web_dist").takeIf { it.isNotEmpty() && it != "null" }?.let { env["HERMES_WEB_DIST"] = "$r/$it" }
         manifest.optString("cert_file").takeIf { it.isNotEmpty() && it != "null" }?.let {

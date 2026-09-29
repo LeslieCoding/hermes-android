@@ -56,7 +56,7 @@ jobs:
       - name: Download the official Hermes Android runtime
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends gpgv gnupg binutils dpkg >/dev/null
+          sudo apt-get install -y --no-install-recommends gpgv gnupg binutils dpkg patchelf >/dev/null
           if [ "$CHANNEL_INPUT" = locked ]; then
             . ./runtime.lock
             CHANNEL="$HERMES_RUNTIME_CHANNEL"; VERSION="${VERSION_INPUT:-$HERMES_RUNTIME_VERSION}"
@@ -124,10 +124,11 @@ jobs:
             --deb-root build/deb/root \
             --web-dist upstream/hermes_cli/web_dist \
             --meta build/deb/meta.json \
+            --runpath \
             --out build/payload
           mkdir -p android/app/src/main/assets/payload
           cp build/payload/payload.zip build/payload/payload.json android/app/src/main/assets/payload/
-          python3 -c "import json;m=json.load(open('build/payload/payload.json'));print(json.dumps({k:m[k] for k in ('payload_id','launcher','ld_library_path','path','node','cert_file','missing_libs','file_count','total_bytes','zip_bytes')},indent=1,ensure_ascii=False))" > build/payload-summary.txt
+          python3 -c "import json;m=json.load(open('build/payload/payload.json'));print(json.dumps({k:m[k] for k in ('payload_id','launcher','ld_library_path','path','node','cert_file','missing_libs','runpath','file_count','total_bytes','zip_bytes')},indent=1,ensure_ascii=False))" > build/payload-summary.txt
           echo "::notice title=payload::$(sed 's/%/%25/g' build/payload-summary.txt | awk '{printf "%s%%0A", $0}')"
 
       - name: Set up signing key
@@ -227,8 +228,8 @@ jobs:
             --tmpfs $T/share:mode=0755,uid=1000,gid=1000 --tmpfs $T/libexec:mode=0755,uid=1000,gid=1000 \
             --tmpfs $T/tmp:mode=0777 \
             -v "$PWD/sim:$FINAL" --entrypoint /system/bin/sh "$IMAGE" "$FINAL/smoke.sh"
-          grep -q SMOKE_OK build/logs/smoke.log
-          echo "::notice title=smoke output::$(tail -n 60 build/logs/smoke.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          test "$(grep -c SMOKE_OK build/logs/smoke.log)" = 2
+          echo "::notice title=smoke output::$(tail -n 70 build/logs/smoke.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
 
   e2e:
     name: End-to-end test on an Android emulator

@@ -232,6 +232,31 @@ def closure_report(stage: Path, elves: list[Path], links: list[list[str]]) -> di
     return missing
 
 
+def set_runpaths(stage: Path, elves: list[Path], ld_dirs: list[str]) -> dict[str, int]:
+    """Point every dynamic ELF at the payload's library dirs via $ORIGIN-relative RUNPATH.
+
+    The app also exports LD_LIBRARY_PATH on arm64 devices, but that variable leaks
+    into anything exec'd — including x86 binary translators on emulators and
+    Chromebooks, which then try to load our arm64 libraries. RUNPATH is per-object.
+    """
+    stats = {"patched": 0, "static": 0, "failed": 0}
+    dirs = [stage / d for d in ld_dirs]
+    for elf in elves:
+        dyn = subprocess.run(["readelf", "-d", str(elf)], capture_output=True, text=True).stdout
+        if "(NEEDED)" not in dyn:
+            stats["static"] += 1
+            continue
+        rel = [os.path.relpath(d, elf.parent) for d in dirs]
+        runpath = ":".join("$ORIGIN" if r == "." else f"$ORIGIN/{r}" for r in rel)
+        res = subprocess.run(["patchelf", "--set-rpath", runpath, str(elf)], capture_output=True, text=True)
+        if res.returncode == 0:
+            stats["patched"] += 1
+        else:
+            stats["failed"] += 1
+            log(f"patchelf failed for {elf.relative_to(stage)}: {res.stderr.strip()[:200]}")
+    return stats
+
+
 def parse_launcher(stage: Path) -> dict[str, str]:
     launcher = stage / "bin" / "hermes"
     info: dict[str, str] = {}
@@ -311,6 +336,7 @@ def main() -> int:
     ap.add_argument("--drop", action="append", default=[],
                     help="payload-relative path to leave out (repeatable)")
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--runpath", action="store_true", help="patch $ORIGIN RUNPATHs into ELF files (needs patchelf)")
     args = ap.parse_args()
 
     src = args.deb_root / TERMUX_PREFIX.lstrip("/") / PAYLOAD_IN_PREFIX
@@ -352,7 +378,9 @@ def main() -> int:
     cert = build_fake_prefix(stage, links)
     launcher = parse_launcher(stage)
     ld, path = tool_dirs(stage)
+    ld = [d for d in ld if any((stage / d).glob("*.so*"))]  # e.g. tools/npm/lib holds JS only
     missing = closure_report(stage, elves, links)
+    runpath_stats = set_runpaths(stage, elves, ld) if args.runpath else None
 
     for need in ("python", "repo", "site"):
         if need not in launcher:
@@ -385,6 +413,7 @@ def main() -> int:
         "executables": executables,
         "rewrite": rewritten,
         "missing_libs": missing,
+        "runpath": runpath_stats,
         "file_count": files,
         "total_bytes": total,
         "zip_bytes": zip_path.stat().st_size,
@@ -396,6 +425,8 @@ def main() -> int:
     log(f"{len(links)} symlinks, {len(executables)} executables, {len(rewritten)} rewritten text files")
     log(f"launcher: {launcher}")
     log(f"LD_LIBRARY_PATH dirs: {ld}")
+    if runpath_stats is not None:
+        log(f"RUNPATH: {runpath_stats}")
     log(f"PATH dirs: {path}")
     if missing:
         log("NEEDED libraries not shipped and not provided by Android:")
