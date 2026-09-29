@@ -41,6 +41,25 @@ def main() -> int:
         except urllib.error.HTTPError as e:
             print(f"GET {path} ->", e.code)
 
+    # HTTPS through the bundled stack, the way model API calls go out. The Termux
+    # prefix (and its CA bundle) is hidden, so this proves our cert settings work.
+    import ssl
+    for url in ("https://api.github.com/zen",):
+        try:
+            with urllib.request.urlopen(url, timeout=30, context=ssl.create_default_context()) as r:
+                print("HTTPS urllib ->", r.status)
+        except urllib.error.HTTPError as e:
+            print("HTTPS urllib ->", e.code)
+        import httpx
+        print("HTTPS httpx ->", httpx.get(url, timeout=30).status_code)
+        try:
+            import truststore
+            ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            with urllib.request.urlopen(url, timeout=30, context=ctx) as r:
+                print("HTTPS truststore ->", r.status)
+        except ImportError:
+            print("truststore not bundled")
+
     from websockets.sync.client import connect
 
     ws = connect(f"ws://127.0.0.1:{PORT}/api/ws?token={TOKEN}",

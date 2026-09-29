@@ -1,0 +1,4 @@
+# Hermes Android runtime this repo builds against by default (shell syntax).
+# Bump after a CI run with the new version passes the smoke and emulator tests.
+HERMES_RUNTIME_CHANNEL=canary
+HERMES_RUNTIME_VERSION=0.27.1~canary.20260917131241-1

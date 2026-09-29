@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Hermes 运行时渠道
+        description: Hermes 运行时渠道（locked = 使用 runtime.lock 中固定的版本）
         type: choice
-        options: [stable, canary]
-        default: stable
+        options: [locked, stable, canary]
+        default: locked
       version:
-        description: 固定运行时版本（Debian 版本号，留空取最新）
+        description: 固定运行时版本（Debian 版本号，留空取该渠道最新）
         required: false
         default: ''
 
@@ -25,8 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CHANNEL: ${{ inputs.channel || 'stable' }}
-  PIN_VERSION: ${{ inputs.version || '' }}
+  CHANNEL_INPUT: ${{ inputs.channel || 'locked' }}
+  VERSION_INPUT: ${{ inputs.version || '' }}
 
 jobs:
   apk:
@@ -57,14 +57,14 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends gpgv gnupg binutils dpkg >/dev/null
-          if ! python3 scripts/fetch_payload.py --channel "$CHANNEL" --version "$PIN_VERSION" --out build/deb; then
-            if [ "$CHANNEL" = stable ] && [ -z "$PIN_VERSION" ]; then
-              echo "::warning::stable 渠道获取失败，改用 canary 渠道"
-              python3 scripts/fetch_payload.py --channel canary --out build/deb
-            else
-              exit 1
-            fi
+          if [ "$CHANNEL_INPUT" = locked ]; then
+            . ./runtime.lock
+            CHANNEL="$HERMES_RUNTIME_CHANNEL"; VERSION="${VERSION_INPUT:-$HERMES_RUNTIME_VERSION}"
+          else
+            CHANNEL="$CHANNEL_INPUT"; VERSION="$VERSION_INPUT"
           fi
+          echo "runtime: channel=$CHANNEL version=${VERSION:-latest}"
+          scripts/ci_run.sh fetch python3 scripts/fetch_payload.py --channel "$CHANNEL" --version "$VERSION" --out build/deb
           cat build/deb/meta.json
 
       - name: Inspect runtime layout
@@ -177,25 +177,15 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ steps.apk.outputs.name }}
+          name: apk
           path: dist/
           compression-level: 0
 
-      - name: Publish release
-        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
-          name: ${{ format('Hermes for Android · 构建 {0}（Hermes {1}）', github.run_number, steps.upstream.outputs.version) }}
-          target_commitish: ${{ github.sha }}
-          make_latest: true
-          files: |
-            dist/*.apk
-            dist/*.sha256
-          body: |
-            下载下面的 `.apk` 安装到 arm64 安卓手机（Android 7.0+）。首次打开会解压运行环境，约 1–3 分钟。
-
-            Hermes Agent 运行时版本：${{ steps.upstream.outputs.deb_version }}（上游提交 ${{ steps.upstream.outputs.commit }}）
+    outputs:
+      name: ${{ steps.apk.outputs.name }}
+      version: ${{ steps.upstream.outputs.version }}
+      deb_version: ${{ steps.upstream.outputs.deb_version }}
+      commit: ${{ steps.upstream.outputs.commit }}
 
   smoke:
     name: Smoke test in an Android container
@@ -226,13 +216,96 @@ jobs:
       - name: Probe the container
         run: |
           docker pull -q "$IMAGE"
-          docker run --rm --entrypoint /system/bin/sh "$IMAGE" -c 'id; uname -a; ls -l /system/bin/sh /system/bin/linker64; ls /data/data/com.termux/files/usr/lib | head -30' > probe.txt 2>&1 || true
+          docker run --rm --entrypoint /system/bin/sh "$IMAGE" -c 'id; uname -a; ls -ld /system /system/bin; ls -l /system/bin/sh; ls /data/data/com.termux/files/usr' > probe.txt 2>&1 || true
           echo "::notice title=container::$(head -c 3000 probe.txt | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
 
-      - name: Run Hermes with the Termux libraries hidden
+      - name: Run Hermes with the Termux prefix hidden
         run: |
-          scripts/ci_run.sh smoke docker run --rm --network none --user 1000:1000 \
-            --tmpfs /data/data/com.termux/files/usr/lib:mode=0755,uid=1000,gid=1000 \
+          T=/data/data/com.termux/files/usr
+          scripts/ci_run.sh smoke docker run --rm --user 1000:1000 \
+            --tmpfs $T/lib:mode=0755,uid=1000,gid=1000 --tmpfs $T/etc:mode=0755,uid=1000,gid=1000 \
+            --tmpfs $T/share:mode=0755,uid=1000,gid=1000 --tmpfs $T/libexec:mode=0755,uid=1000,gid=1000 \
+            --tmpfs $T/tmp:mode=0777 \
             -v "$PWD/sim:$FINAL" --entrypoint /system/bin/sh "$IMAGE" "$FINAL/smoke.sh"
           grep -q SMOKE_OK build/logs/smoke.log
           echo "::notice title=smoke output::$(tail -n 60 build/logs/smoke.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+
+  e2e:
+    name: End-to-end test on an Android emulator
+    needs: apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: apk
+          path: dist
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+
+      - name: Run the APK on an emulator (arm64 via native bridge)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disk-size: 8G
+          ram-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: bash scripts/e2e.sh
+
+      - name: Report
+        if: always()
+        run: |
+          if [ -f e2e/summary.txt ]; then
+            echo "::notice title=e2e summary::$(sed 's/%/%25/g' e2e/summary.txt | awk '{printf "%s%%0A", $0}')"
+          fi
+          if [ -f e2e/logcat.txt ]; then
+            echo "::notice title=e2e logcat (tail)::$(tail -n 80 e2e/logcat.txt | cut -c1-300 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          fi
+
+      - name: Publish screenshots to the ci-e2e branch
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          [ -d e2e ] || exit 0
+          cd e2e
+          git init -q -b ci-e2e
+          git add -A
+          git -c user.name=ci -c user.email=ci@localhost commit -q -m "e2e run ${{ github.run_number }}"
+          git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-e2e
+
+  release:
+    name: Publish release
+    needs: [apk, smoke]
+    if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: apk
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ format('Hermes for Android · 构建 {0}（Hermes {1}）', github.run_number, needs.apk.outputs.version) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: |
+            dist/*.apk
+            dist/*.sha256
+          body: |
+            下载下面的 `.apk` 安装到 arm64 安卓手机（Android 7.0+）。首次打开会解压运行环境，约 1–3 分钟，需要约 1 GB 可用空间。
+
+            Hermes Agent 运行时：${{ needs.apk.outputs.deb_version }}（上游提交 ${{ needs.apk.outputs.commit }}）。本版本已通过 Android 容器内的冒烟测试。

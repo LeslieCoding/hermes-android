@@ -51,6 +51,8 @@ object RuntimeEnv {
             "HERMES_RUNTIME_DIR" to "$r/tools",
             "HERMES_DASHBOARD_SESSION_TOKEN" to token,
             "HERMES_ANDROID_APP" to BuildConfig.VERSION_NAME,
+            // Android keeps its CA store in OpenSSL hashed-directory format.
+            "SSL_CERT_DIR" to "/system/etc/security/cacerts",
         )
         manifest.optString("node").takeIf { it.isNotEmpty() && it != "null" }?.let { env["HERMES_NODE"] = "$r/$it" }
         manifest.optString("web_dist").takeIf { it.isNotEmpty() && it != "null" }?.let { env["HERMES_WEB_DIST"] = "$r/$it" }

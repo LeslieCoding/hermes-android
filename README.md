@@ -32,23 +32,31 @@
 3. 打开 **控制台 → Models / Keys**，添加一个模型服务商和 API Key（DeepSeek、通义、Kimi、智谱、OpenRouter、OpenAI、Anthropic 等，按上游支持为准）。
 4. 回到 **对话** 开始使用。
 
-建议在「运行」页里关闭电池优化；Android 可能会在后台暂停或结束长时间运行的进程，这点和 Termux 上的限制一样。
+建议在「运行」页里关闭电池优化；Android 可能会在后台暂停或结束长时间运行的进程，这点和 Termux 上的限制一样。Hermes 进程意外退出时，App 会自动重启它（10 分钟内最多 3 次）。
+
+Android 12 及以上有“幻影进程”限制，后台占用 CPU 较多的子进程可能被系统直接结束。如果长任务经常中断：Android 14+ 可在「开发者选项」里打开“停用子进程限制”；Android 12/13 可用电脑执行 `adb shell settings put global settings_enable_monitor_phantom_procs false`。
 
 ### 已知限制
 
 - 与上游 Termux 包相同：不含 Electron、本地 Chromium、桌面“电脑操作”类工具，也没有 Docker；上游标注为仅支持 Linux 的可选依赖或技能在 Android 上可能不可用。
 - 没有 `bash`、`git` 等完整 Linux 用户态；终端类工具使用系统自带的 `/system/bin/sh`（toybox）。
 - `targetSdkVersion` 刻意设为 28（和 Termux 一样）：从 API 29 开始，Android 禁止执行 App 可写目录里的程序，而内置运行时正是放在那里。因此这个 APK 适合自行安装，不能上架 Google Play；部分系统安装时会提示“此应用专为旧版 Android 打造”，属正常现象。
-- 上游文档目前标注 Termux 包“正在修复中”。如果 stable 渠道的包有问题，可以在手动构建时选 canary 渠道，或固定某个已知可用的版本。
+- 上游 stable 渠道目前没有可用的 Android 包，所以默认构建使用 `runtime.lock` 里固定的、已通过测试的 canary 版本。
+- 安装包约 270 MB，解压后运行环境约 670 MB，请预留 1 GB 以上空间。
 
 ## 构建
 
 本仓库用 GitHub Actions 出包（`.github/workflows/build-apk.yml`），推送到 `main` 即自动构建，在 Actions 运行页的 Artifacts 里下载 APK。推送 `v*` 标签会同时发布到 Releases。
 
-手动构建（Actions → Build APK → Run workflow）可以选择：
+默认使用 `runtime.lock` 固定的运行时版本。手动构建（Actions → Build APK → Run workflow）可以改用：
 
-- **channel**：`stable`（默认）或 `canary`
-- **version**：固定某个运行时版本（Debian 版本号），留空取最新
+- **channel**：`locked`（默认，按 runtime.lock）、`stable` 或 `canary`
+- **version**：指定某个运行时版本（Debian 版本号），留空取该渠道最新
+
+每次构建都会自动测试：
+
+- **冒烟测试**：在 ARM 机器上的 Android（Termux）容器里，按 App 的方式安装运行时，并屏蔽 Termux 自带的库和证书。然后启动 Hermes，检查 HTTPS 访问、控制台和对话网关。通过后才会发布到 Releases。
+- **模拟器测试**：在 Android 模拟器上安装真实 APK，启动后检查服务和界面，截图推送到 `ci-e2e` 分支。这项测试依赖模拟器的 ARM 转译，结果仅作参考，失败不阻止发布。
 
 构建流程：
 

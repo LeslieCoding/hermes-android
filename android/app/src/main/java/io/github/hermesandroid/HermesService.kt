@@ -33,6 +33,7 @@ class HermesService : Service() {
     @Volatile private var pid: Int = 0
     @Volatile private var stopping = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private val crashTimes = java.util.concurrent.CopyOnWriteArrayList<Long>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -49,6 +50,8 @@ class HermesService : Service() {
             }
             ACTION_RESTART -> thread(name = "hermes-restart") {
                 stopRuntime()
+                worker?.join()
+                crashTimes.clear()
                 launch()
             }
             else -> launch()
@@ -92,6 +95,12 @@ class HermesService : Service() {
             if (swept > 0) log("清理了 $swept 个残留进程")
 
             if (installer.needsInstall(manifest)) {
+                val need = manifest.optLong("total_bytes", 0L) + 200L * 1024 * 1024
+                val free = filesDir.usableSpace
+                if (free in 1 until need) {
+                    fail("存储空间不足：需要约 ${need / 1_000_000} MB，当前可用 ${free / 1_000_000} MB")
+                    return
+                }
                 HermesRuntime.update { it.copy(phase = HermesRuntime.Phase.INSTALLING, progress = 0f, message = "首次运行，正在解压运行环境…") }
                 installer.install(manifest) { p, label ->
                     HermesRuntime.update { it.copy(progress = p, message = label) }
@@ -132,7 +141,25 @@ class HermesService : Service() {
             if (stopping) {
                 HermesRuntime.update { it.copy(phase = HermesRuntime.Phase.STOPPED, message = "已停止", exitCode = code, pid = 0) }
             } else {
-                fail("Hermes 进程意外退出（代码 $code），请查看日志", code)
+                val killed = code == 137 || code == 9
+                val hint = if (killed) "，可能被系统的后台限制结束" else ""
+                val now = System.currentTimeMillis()
+                crashTimes.removeIf { now - it > 10 * 60 * 1000L }
+                crashTimes.add(now)
+                if (crashTimes.size <= MAX_AUTO_RESTARTS) {
+                    log("Hermes 进程退出（代码 $code$hint），自动重启（${crashTimes.size}/$MAX_AUTO_RESTARTS）")
+                    HermesRuntime.update { it.copy(phase = HermesRuntime.Phase.STARTING, message = "正在自动重启…", exitCode = code, pid = 0) }
+                    releaseWakeLock()
+                    Thread.sleep(2000L * crashTimes.size)
+                    if (!stopping) {
+                        thread(name = "hermes-relaunch") {
+                            worker?.join()
+                            launch()
+                        }
+                    }
+                    return
+                }
+                fail("Hermes 进程意外退出（代码 $code$hint），请查看日志", code)
             }
         } catch (t: Throwable) {
             log("错误：${t}")
@@ -317,6 +344,7 @@ class HermesService : Service() {
         const val ACTION_STOP = "io.github.hermesandroid.STOP"
         const val ACTION_RESTART = "io.github.hermesandroid.RESTART"
         private const val NOTIFICATION_ID = 42
+        private const val MAX_AUTO_RESTARTS = 3
 
         fun send(context: Context, action: String) {
             val intent = Intent(context, HermesService::class.java).setAction(action)

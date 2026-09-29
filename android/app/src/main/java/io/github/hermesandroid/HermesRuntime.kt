@@ -56,6 +56,7 @@ object HermesRuntime {
     private val lines = ArrayDeque<String>()
 
     fun appendLog(line: String) {
+        android.util.Log.i("Hermes", line)
         synchronized(lines) {
             lines.addLast(line)
             while (lines.size > MAX_LINES) lines.removeFirst()
