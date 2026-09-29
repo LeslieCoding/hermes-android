@@ -7,8 +7,8 @@ and each bundled tool is a staged Termux tree
 (``tools/<tool>/data/data/com.termux/files/usr/...``). The app cannot use that
 path, so this script produces a relocatable archive:
 
-* nested ``tools/<tool>/data/data/com.termux/files/usr`` trees are flattened to
-  ``tools/<tool>``;
+* upstream's layout is kept as-is (its package manager checks the nested
+  ``tools/<tool>/data/data/com.termux/files/usr`` trees);
 * in every text file (ELF and other binaries are left untouched; the app sets
   ``LD_LIBRARY_PATH`` instead of relying on RUNPATH) the Termux paths are
   rewritten to placeholders the app substitutes at install time:
@@ -43,13 +43,17 @@ PREFIX_PH = "@@TERMUX_PREFIX@@"
 NESTED = "data/data/com.termux/files/usr"
 
 # Ordered byte-level rewrites for text files and absolute symlink targets.
+# Upstream's tool trees keep their staged Termux layout
+# (tools/<tool>/data/data/com.termux/files/usr/...) and its package manager checks
+# those exact paths, so the layout is preserved. Only ABSOLUTE Termux paths are
+# rewritten: the lookbehind skips the nested occurrences (preceded by the tool name).
 _PATH_CHAR = rb"[A-Za-z0-9_.+-]"
+_ABS = rb"(?<![A-Za-z0-9_])"  # e.g. "${PREFIX:-/data/..." must still match
 REWRITES: list[tuple[re.Pattern[bytes], bytes]] = [
-    (re.compile(rb"tools/(" + _PATH_CHAR + rb"+)/data/data/com\.termux/files/usr(?=/|\b|$)"), rb"tools/\1"),
-    (re.compile(re.escape(f"{TERMUX_PREFIX}/{PAYLOAD_IN_PREFIX}".encode())), ROOT_PH.encode()),
-    (re.compile(re.escape(f"{TERMUX_PREFIX}/bin/sh".encode()) + rb"(?!" + _PATH_CHAR + rb")"), b"/system/bin/sh"),
-    (re.compile(re.escape(f"{TERMUX_PREFIX}/bin/env".encode()) + rb"(?!" + _PATH_CHAR + rb")"), b"/system/bin/env"),
-    (re.compile(re.escape(TERMUX_PREFIX.encode())), PREFIX_PH.encode()),
+    (re.compile(_ABS + re.escape(f"{TERMUX_PREFIX}/{PAYLOAD_IN_PREFIX}".encode())), ROOT_PH.encode()),
+    (re.compile(_ABS + re.escape(f"{TERMUX_PREFIX}/bin/sh".encode()) + rb"(?!" + _PATH_CHAR + rb")"), b"/system/bin/sh"),
+    (re.compile(_ABS + re.escape(f"{TERMUX_PREFIX}/bin/env".encode()) + rb"(?!" + _PATH_CHAR + rb")"), b"/system/bin/env"),
+    (re.compile(_ABS + re.escape(TERMUX_PREFIX.encode())), PREFIX_PH.encode()),
 ]
 NEEDLE = b"com.termux/files/usr"
 
@@ -94,42 +98,18 @@ def looks_binary(path: Path, head: bytes) -> bool:
 
 
 def map_old_rel(rel: PurePosixPath) -> PurePosixPath:
-    """Old payload-relative path -> flattened path (tools/<t>/data/data/.../usr/x -> tools/<t>/x)."""
-    parts = rel.parts
-    nested = tuple(NESTED.split("/"))
-    for i in range(len(parts) - len(nested) + 1):
-        if parts[i:i + len(nested)] == nested:
-            return map_old_rel(PurePosixPath(*parts[:i], *parts[i + len(nested):]))
+    """Layout is preserved (see REWRITES), so payload-relative paths do not move."""
     return rel
 
 
-def flatten(stage: Path) -> None:
-    """Move every nested Termux prefix tree up to its owner directory."""
-    moved = True
-    while moved:
-        moved = False
-        for dirpath, dirnames, _ in os.walk(stage):
-            here = Path(dirpath)
-            nested = here / NESTED
-            if "data" in dirnames and nested.is_dir() and not nested.is_symlink():
-                for child in list(nested.iterdir()):
-                    target = here / child.name
-                    if target.exists() or target.is_symlink():
-                        raise SystemExit(f"flatten clash: {target}")
-                    child.rename(target)
-                shutil.rmtree(here / "data")
-                log(f"flattened {here.relative_to(stage)}/{NESTED}")
-                moved = True
-                break
-
-
 def prune(stage: Path, links: list[list[str]]) -> None:
-    """Drop build-time-only files (headers, static libs, man pages) from the flattened tools."""
+    """Drop build-time-only files (headers, static libs, man pages) from the bundled tools."""
     freed = 0
     victims: list[Path] = []
     for tool in (stage / "tools").glob("*"):
         if tool.is_dir():
-            victims += [tool / "include", tool / "share/man", tool / "share/doc", tool / "share/info"]
+            base = tool_base(tool)
+            victims += [base / "include", base / "share/man", base / "share/doc", base / "share/info"]
     for d in (stage / "tools", stage / "runtime-libs"):
         if d.is_dir():
             victims += [p for p in d.rglob("*.a") if p.is_file()]
@@ -149,11 +129,7 @@ def prune(stage: Path, links: list[list[str]]) -> None:
 
 
 def relink(stage: Path) -> list[list[str]]:
-    """Record every symlink with a target valid for the flattened layout, then remove it.
-
-    Must run BEFORE flatten(): relative targets are resolved against the link's
-    original location, and both ends are mapped through map_old_rel().
-    """
+    """Record every symlink (absolute targets rewritten like text files), then remove it."""
     links: list[list[str]] = []
     payload_abs = PurePosixPath(TERMUX_PREFIX) / PAYLOAD_IN_PREFIX
     for dirpath, dirnames, filenames in os.walk(stage):
@@ -287,16 +263,23 @@ def build_fake_prefix(stage: Path, links: list[list[str]]) -> str | None:
     return None
 
 
+def tool_base(tool: Path) -> Path:
+    """A tool's usr/ root: its staged Termux tree if it has one, else the tool dir."""
+    nested = tool / NESTED
+    return nested if nested.is_dir() else tool
+
+
 def tool_dirs(stage: Path) -> tuple[list[str], list[str]]:
     ld, path = [], []
     tools = stage / "tools"
     for tool in sorted(tools.iterdir()) if tools.is_dir() else []:
         if not tool.is_dir():
             continue
-        rel = f"tools/{tool.name}"
-        if (tool / "lib").is_dir():
+        base = tool_base(tool)
+        rel = base.relative_to(stage).as_posix()
+        if (base / "lib").is_dir():
             ld.append(f"{rel}/lib")
-        if (tool / "bin").is_dir():
+        if (base / "bin").is_dir():
             path.append(f"{rel}/bin")
         elif any(tool.iterdir()):
             path.append(rel)  # e.g. tools/ripgrep holds the rg binary directly
@@ -372,7 +355,6 @@ def main() -> int:
         log("added web_dist")
 
     links = relink(stage)
-    flatten(stage)
     prune(stage, links)
     rewritten, executables, elves = rewrite_and_scan(stage)
     cert = build_fake_prefix(stage, links)
@@ -408,7 +390,7 @@ def main() -> int:
         "path": path,
         "cert_file": cert,
         "web_dist": "web_dist" if args.web_dist else None,
-        "node": next((p for p in ("tools/node/bin/node",) if (stage / p).exists()), None),
+        "node": next((p for p in (f"tools/node/{NESTED}/bin/node", "tools/node/bin/node") if (stage / p).exists()), None),
         "symlinks": links,
         "executables": executables,
         "rewrite": rewritten,

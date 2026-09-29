@@ -1056,6 +1056,7 @@
   }
 
   async function onConnected() {
+    console.log('HERMES_GATEWAY_CONNECTED');
     updateSubtitle();
     updateSendButton();
     const target = chat.storedId || lastSession();
@@ -1072,6 +1073,7 @@
   async function checkSetup() {
     try {
       const r = await gw.request('setup.status', {}, 20000);
+      console.log('HERMES_SETUP_STATUS provider_configured=' + (r && r.provider_configured));
       if (r && r.provider_configured === false) {
         ui.banner.innerHTML = '';
         ui.banner.appendChild(el('div', null, '还没有配置 AI 模型。请在控制台的「Models / Keys」里添加模型服务商和 API Key，然后回来开始对话。'));
