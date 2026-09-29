@@ -1,0 +1,11 @@
+--------- beginning of main
+I/Hermes  ( 3926): [app] 运行环境已安装：0.27.1~canary.20260917131241-1-324397ce5288
+I/Hermes  ( 3926): [app] 启动：hermes dashboard --port 9119
+I/Hermes  ( 3926): ⚠ install out of sync (ffmpeg: not installed or outdated; node: not installed or outdated; npm: not installed or outdated) — this apt-termux-managed install must rebuild the artifact to fix
+I/Hermes  ( 3926): → Using web dist from HERMES_WEB_DIST: /data/user/0/io.github.hermesandroid/files/hermes-agent/web_dist
+I/Hermes  ( 3926): HERMES_DASHBOARD_READY port=9119
+I/Hermes  ( 3926):   Hermes Web UI → http://127.0.0.1:9119
+I/Hermes  ( 3926): <frozen importlib._bootstrap>:491: Warning: OpenSSL 3's legacy provider failed to load. Legacy algorithms will not be available. If you need those algorithms, check your OpenSSL configuration.
+I/Hermes  ( 3926): [app] Hermes 已就绪：http://127.0.0.1:9119
+D/HermesWeb( 3926): http://127.0.0.1:9119/__android/app.js:1059 HERMES_GATEWAY_CONNECTED
+D/HermesWeb( 3926): http://127.0.0.1:9119/__android/app.js:1133 HERMES_SETUP_STATUS provider_configured=false
