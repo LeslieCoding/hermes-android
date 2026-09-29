@@ -1067,7 +1067,31 @@
     if (!setupChecked) {
       setupChecked = true;
       checkSetup();
+      seedConsoleTheme();
     }
+  }
+
+  // The embedded console defaults to a dark theme; switch it once to upstream's
+  // light "Nous Blue" preset so it matches the app. A later choice by the user wins.
+  async function seedConsoleTheme() {
+    const KEY = 'hermes.android.consoleThemeSeeded';
+    try {
+      if (localStorage.getItem(KEY)) return;
+      const headers = { 'X-Hermes-Session-Token': status.token };
+      const r = await fetch('/api/dashboard/themes', { headers });
+      if (!r.ok) return;
+      const data = await r.json();
+      if (!data.active || data.active === 'default') {
+        const put = await fetch('/api/dashboard/theme', {
+          method: 'PUT',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+          body: JSON.stringify({ name: 'nous-blue' }),
+        });
+        if (!put.ok) return;
+        localStorage.setItem('hermes-dashboard-theme', 'nous-blue');
+      }
+      localStorage.setItem(KEY, '1');
+    } catch (_) { /* not critical */ }
   }
 
   async function checkSetup() {
@@ -1076,11 +1100,19 @@
       console.log('HERMES_SETUP_STATUS provider_configured=' + (r && r.provider_configured));
       if (r && r.provider_configured === false) {
         ui.banner.innerHTML = '';
-        ui.banner.appendChild(el('div', null, '还没有配置 AI 模型。请在控制台的「Models / Keys」里添加模型服务商和 API Key，然后回来开始对话。'));
-        const go = el('button', null, '去配置');
+        const text = el('div', 'banner-text');
+        text.appendChild(el('strong', null, '还没有配置 AI 模型'));
+        text.appendChild(el('span', null, '在控制台添加服务商和 API Key 后即可对话'));
+        ui.banner.appendChild(text);
+        const go = el('button', 'primary', '去配置');
         go.type = 'button';
         go.onclick = () => { showView('console', '/models'); ui.banner.hidden = true; };
         ui.banner.appendChild(go);
+        const x = el('button', 'banner-close', '×');
+        x.type = 'button';
+        x.setAttribute('aria-label', '关闭');
+        x.onclick = () => { ui.banner.hidden = true; };
+        ui.banner.appendChild(x);
         ui.banner.hidden = false;
       } else {
         ui.banner.hidden = true;
@@ -1168,7 +1200,7 @@
     $('#st-phase').textContent = phaseLabel(status.phase);
     const dot = $('#st-dot');
     dot.className = 'dot big-dot ' + (status.phase === 'running' ? 'ok' : status.phase === 'error' ? 'err' : 'busy');
-    $('#st-message').textContent = status.message || '';
+    $('#st-message').textContent = status.message && status.message !== phaseLabel(status.phase) ? status.message : '';
     const prog = $('#st-progress');
     prog.hidden = status.phase !== 'installing';
     if (!prog.hidden) setProgress(prog, status.progress);

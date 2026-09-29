@@ -44,7 +44,7 @@ class MainActivity : Activity() {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         web = WebView(this)
-        web.setBackgroundColor(Color.parseColor("#101114"))
+        web.setBackgroundColor(Color.parseColor("#F4F6FB"))
         setContentView(web)
 
         with(web.settings) {
