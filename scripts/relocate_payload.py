@@ -219,9 +219,10 @@ def needed_libs(path: Path) -> list[str]:
     return re.findall(r"\(NEEDED\)\s+Shared library: \[([^\]]+)\]", out)
 
 
-def closure_report(stage: Path, elves: list[Path]) -> dict[str, list[str]]:
+def closure_report(stage: Path, elves: list[Path], links: list[list[str]]) -> dict[str, list[str]]:
     shipped = {p.name for p in elves}
     shipped |= {p.name for p in stage.rglob("*.so*") if p.is_file()}
+    shipped |= {PurePosixPath(link).name for link, _ in links}  # soname symlinks are restored on-device
     missing: dict[str, list[str]] = {}
     for elf in elves:
         for lib in needed_libs(elf):
@@ -351,7 +352,7 @@ def main() -> int:
     cert = build_fake_prefix(stage, links)
     launcher = parse_launcher(stage)
     ld, path = tool_dirs(stage)
-    missing = closure_report(stage, elves)
+    missing = closure_report(stage, elves, links)
 
     for need in ("python", "repo", "site"):
         if need not in launcher:

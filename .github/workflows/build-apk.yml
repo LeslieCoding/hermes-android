@@ -229,3 +229,4 @@ jobs:
             --tmpfs /data/data/com.termux/files/usr/lib:mode=0755,uid=1000,gid=1000 \
             -v "$PWD/sim:$FINAL" --entrypoint /system/bin/sh "$IMAGE" "$FINAL/smoke.sh"
           grep -q SMOKE_OK build/logs/smoke.log
+          echo "::notice title=smoke output::$(tail -n 60 build/logs/smoke.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
