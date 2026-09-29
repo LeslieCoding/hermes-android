@@ -30,12 +30,23 @@ android {
     }
 
     signingConfigs {
+        // v1 (JAR) signing is off by default for minSdk >= 24, but several vendor
+        // installers (e.g. ColorOS/HyperOS scanners) reject APKs without META-INF
+        // signature files ("安装包没有签名文件"). Sign with every scheme.
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
         if (hasReleaseKey) {
             create("release") {
                 storeFile = keystoreFile
                 storePassword = System.getenv("HERMES_ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("HERMES_ANDROID_KEY_ALIAS")
                 keyPassword = System.getenv("HERMES_ANDROID_KEY_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

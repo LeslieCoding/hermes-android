@@ -158,6 +158,14 @@ jobs:
           HERMES_ANDROID_VERSION_NAME: ${{ steps.upstream.outputs.version }}
         run: ../scripts/ci_run.sh gradle gradle assembleRelease --no-daemon --stacktrace
 
+      - name: Verify APK signature (v1 + v2 + v3)
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --min-sdk-version 24 android/app/build/outputs/apk/release/app-release.apk | tee build/apksigner.txt
+          grep -q "Verified using v1 scheme (JAR signing): true" build/apksigner.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" build/apksigner.txt
+          unzip -l android/app/build/outputs/apk/release/app-release.apk | grep -E "META-INF/.*\.(RSA|EC|DSA)$"
+
       - name: Collect APK
         id: apk
         run: |
