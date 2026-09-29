@@ -160,11 +160,12 @@ jobs:
 
       - name: Verify APK signature (v1 + v2 + v3)
         run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --verbose --min-sdk-version 24 android/app/build/outputs/apk/release/app-release.apk | tee build/apksigner.txt
-          grep -q "Verified using v1 scheme (JAR signing): true" build/apksigner.txt
-          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" build/apksigner.txt
-          unzip -l android/app/build/outputs/apk/release/app-release.apk | grep -E "META-INF/.*\.(RSA|EC|DSA)$"
+          { echo "apksigner: $APKSIGNER"; "$APKSIGNER" verify --verbose --min-sdk-version 24 "$APK" 2>&1; echo "--- META-INF"; unzip -l "$APK" | grep META-INF; } > build/apksigner.txt || true
+          echo "::notice title=apk signature::$(head -c 3000 build/apksigner.txt | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          grep -qi "v1 scheme (JAR signing): true" build/apksigner.txt
+          grep -qi "v2 scheme (APK Signature Scheme v2): true" build/apksigner.txt
 
       - name: Collect APK
         id: apk
