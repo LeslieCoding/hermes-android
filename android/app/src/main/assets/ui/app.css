@@ -161,6 +161,7 @@ button.pill, .choices button, .buttons button, #banner button, .switch-row butto
 button.primary, .choices button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
 button.danger { color: var(--err); }
 button:disabled { opacity: .45; }
+button.primary:disabled { background: var(--bg-3); color: var(--muted); }
 
 /* ── composer ── */
 #composer { border-top: 1px solid var(--line); padding: 8px 10px calc(8px + var(--safe-bottom)); background: var(--bg); }
