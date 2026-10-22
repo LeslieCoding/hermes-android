@@ -6,7 +6,18 @@ set -uo pipefail
 name="$1"; shift
 mkdir -p build/logs
 log="build/logs/$name.log"
-"$@" 2>&1 | tee "$log"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The dashboard is built from the upstream Hermes checkout.  Before compiling
+# it for the Android payload, apply our CSS-only phone/Chinese compatibility
+# layer.  Keeping this hook here means every CI build gets the patch even as
+# the upstream source revision changes.
+{
+  if [ "$name" = "web-build" ]; then
+    python3 "$script_dir/patch_dashboard_android.py" "$PWD" || exit $?
+  fi
+  "$@"
+} 2>&1 | tee "$log"
 status=${PIPESTATUS[0]}
 annotate() {  # level title file lines
   local body
