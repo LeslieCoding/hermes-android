@@ -6,7 +6,15 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
   <title>Hermes</title>
-  <script>try{document.documentElement.dataset.theme=localStorage.getItem('hermes.android.theme')||'sage'}catch(e){}</script>
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('hermes.android.theme') || 'sage';
+      // Hermes Dashboard and the Android shell share the same origin. Force the
+      // upstream dashboard's built-in Simplified Chinese locale before its iframe
+      // is loaded so navigation, settings and runtime UI do not fall back to English.
+      localStorage.setItem('hermes-locale', 'zh');
+    } catch (e) {}
+  </script>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
