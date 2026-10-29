@@ -40,6 +40,17 @@
     'Update Hermes': '更新 Hermes',
     'Hermes Console': 'Hermes 控制台',
 
+    // Telemetry consent banner (shown on first open of the console)
+    'Help improve Hermes?': '帮助改进 Hermes？',
+    'Shared metrics are bounded counters, never prompts, files, paths or error text. Collection stays on this machine; sending to Nous is a separate choice.':
+      '共享指标只是有上限的计数器，从不包含提示词、文件、路径或错误文本。数据默认只留在本机；是否发送给 Nous 由你单独决定。',
+    'Shared metrics are bounded counters, never prompts, files, paths or error text. Sharing sends them to Nous once a day.':
+      '共享指标只是有上限的计数器，从不包含提示词、文件、路径或错误文本。共享后每天向 Nous 发送一次。',
+    'Local only': '仅本机',
+    'Share with Nous': '与 Nous 共享',
+    'Send to Nous': '发送给 Nous',
+    'No thanks': '不了，谢谢',
+
     // Common actions
     'Add': '添加',
     'Add key': '添加密钥',
