@@ -355,12 +355,23 @@
   const SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, CODE: 1, PRE: 1, INPUT: 1, NOSCRIPT: 1 };
   const has = (k) => Object.prototype.hasOwnProperty.call(DICT, k);
 
+  // Chinese sentences are narrower per character but cannot be broken into words, so a
+  // long sentence inside a flex row gets squeezed into a one-character column. Long
+  // translated paragraphs take a full row, and their row is allowed to wrap.
+  const LONG = 40; // English length above which a sentence is treated as a paragraph
+  const STYLE = '.hermes-i18n-wrap{flex-wrap:wrap!important}' +
+    '.hermes-i18n-long{flex:1 1 100%!important;min-width:0!important;max-width:100%!important}';
+
   function translateText(node) {
     const v = node.nodeValue;
     if (!v) return;
     const k = v.trim();
     if (!k || !has(k)) return;
     node.nodeValue = v.replace(k, DICT[k]);
+    if (k.length > LONG && node.parentElement) {
+      node.parentElement.classList.add('hermes-i18n-long');
+      if (node.parentElement.parentElement) node.parentElement.parentElement.classList.add('hermes-i18n-wrap');
+    }
   }
 
   function translateEl(el) {
@@ -384,6 +395,9 @@
   window.installConsoleI18n = function (doc) {
     if (!doc || !doc.body || doc.__hermesI18n) return;
     doc.__hermesI18n = true;
+    const style = doc.createElement('style');
+    style.textContent = STYLE;
+    (doc.head || doc.documentElement).appendChild(style);
     walk(doc.body);
     const MO = doc.defaultView.MutationObserver;
     if (!MO) return;
