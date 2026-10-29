@@ -1,0 +1,9 @@
+abi: x86_64,arm64-v8a
+native bridge: libndk_translation.so exec=1
+sdk: 34
+install: Success
+server up: 1 after 111s
+{"version":"0.22.0+canary.20261014T070054Z","release_date":"2026.9.24","config_version":50,"latest_config_version":50,"can_update_hermes":true,"gateway_running":false,"gateway_state":null,"gateway_platforms":{},"gateway_exit_reason":null,"gateway_updated_at":null,"gateway_heartbeat_stale_s":null,"ga
+chat UI connected to gateway: 1
+HERMES_SETUP_STATUS provider_configured=false
+I/Hermes  ( 3263): ⚠ install out of sync (ffmpeg: not installed or outdated; node: not installed or outdated; npm: not installed or outdated) — this apt-termux-managed install must rebuild the artifact to fix
