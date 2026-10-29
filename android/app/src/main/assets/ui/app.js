@@ -206,7 +206,7 @@
           this.fail(frame.id, -32603, String(e && e.message || e));
           return;
         }
-        if (!handled) this.fail(frame.id, -32601, 'not supported by the Android client');
+        if (!handled) this.fail(frame.id, -32601, 'Android 客户端暂不支持此操作');
         return;
       }
       if (frame.id != null && this.pending.has(frame.id)) {
@@ -524,7 +524,7 @@
     }
     const usage = p && p.usage;
     if (usage && (usage.total_tokens || usage.output_tokens)) {
-      meta.appendChild(el('span', null, (usage.total_tokens || ((usage.input_tokens || 0) + (usage.output_tokens || 0))) + ' tokens'));
+      meta.appendChild(el('span', null, (usage.total_tokens || ((usage.input_tokens || 0) + (usage.output_tokens || 0))) + ' 令牌'));
     }
     if (meta.childNodes.length) turn.wrap.appendChild(meta);
     chat.turn = null;
@@ -1362,6 +1362,11 @@
   };
 
   // ───────────────────────────── start ─────────────────────────────
+
+  // The console is same-origin, so its labels are translated from here on every load.
+  $('#console-frame').addEventListener('load', () => {
+    try { window.installConsoleI18n($('#console-frame').contentDocument); } catch (e) { console.warn('console i18n', e); }
+  });
 
   updateSendButton();
   pollStatus();
